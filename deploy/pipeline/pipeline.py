@@ -272,8 +272,6 @@ class PipePredictor(object):
 
     def __init__(self, args, cfg, is_video=True, multi_camera=False):
         # general module for pphuman and ppvehicle
-        print("args:")
-        print(args)
         self.with_mot = cfg.get('MOT', False)['enable'] if cfg.get(
             'MOT', False) else False
         self.with_human_attr = cfg.get('ATTR', False)['enable'] if cfg.get(
@@ -1382,6 +1380,5 @@ if __name__ == '__main__':
     FLAGS.device = FLAGS.device.upper()
     assert FLAGS.device in ['CPU', 'GPU', 'XPU', 'NPU'
                             ], "device should be CPU, GPU, XPU or NPU"
-    print(FLAGS)
     run_heart_beat(FLAGS)
     main()
