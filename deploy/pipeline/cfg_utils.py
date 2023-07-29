@@ -62,6 +62,8 @@ def argsparser():
 
     parser.add_argument("--draw_mark",type=boolean_string,default=True,help="是否标记人体")
 
+    parser.add_argument("--imshow", type=boolean_string, default=False, help="是否通过cv2展示跟踪画面")
+
     parser.add_argument(
         "--image_file", type=str, default=None, help="Path of image file.")
     parser.add_argument(

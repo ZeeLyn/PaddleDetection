@@ -85,6 +85,7 @@ class Pipeline(object):
     """
 
     def __init__(self, args, cfg,tracking_data_communicate):
+        self.args=args
         self.tracking_data_communicate = tracking_data_communicate
         self.multi_camera = False
         reid_cfg = cfg.get('REID', False)
@@ -273,6 +274,8 @@ class PipePredictor(object):
 
     def __init__(self, args, cfg, is_video=True, multi_camera=False):
         # general module for pphuman and ppvehicle
+
+        self.args=args
         self.with_mot = cfg.get('MOT', False)['enable'] if cfg.get(
             'MOT', False) else False
         self.with_human_attr = cfg.get('ATTR', False)['enable'] if cfg.get(
@@ -833,6 +836,7 @@ class PipePredictor(object):
                     records,
                     ids2names=self.mot_predictor.pred_config.labels)
                 records = statistic['records']
+                # cv2.imshow("prev",frame_rgb)
                 _tracking_data_communicate.Set(len(statistic['id_set']),len(statistic['in_id_list']),len(statistic['out_id_list']))
                 if self.illegal_parking_time != -1:
                     object_in_region_info, illegal_parking_dict = update_object_info(
@@ -1126,11 +1130,12 @@ class PipePredictor(object):
                                           entrance, records, center_traj,
                                           self.illegal_parking_time != -1,
                                           illegal_parking_dict)  # visualize
+
                 if len(self.pushurl) > 0:
                     pushstream.pipe.stdin.write(im.tobytes())
                 else:
                     writer.write(im)
-                    if self.file_name is None:  # use camera_id
+                    if self.file_name is None or self.args.imshow:  # use camera_id
                         cv2.imshow('Paddle-Pipeline', im)
                         if cv2.waitKey(1) & 0xFF == ord('q'):
                             break
