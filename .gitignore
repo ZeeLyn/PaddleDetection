@@ -34,7 +34,12 @@ __pycache__/
 /.installed.cfg
 /*.egg
 /.eggs
-
+bin/
+obj/
+.vs/
+dist/
+demo_input/
+demo_ouput/
 # AUTHORS and ChangeLog will be generated while packaging
 /AUTHORS
 /ChangeLog
@@ -86,3 +91,13 @@ kernel_meta/
 # MAC
 *.DS_Store
 
+demo_input/IMG_6522.mp4
+demo_input/IMG_6524.mp4
+demo_input/MOT16-03.mp4
+demo_input/test.mp4
+demo_input/test_720p.mp4
+demo_output/test_720p.mp4
+deploy/demo_output/test_720p.mp4
+*.mp4
+pipeline.exe
+pipeline.spec

@@ -4,6 +4,7 @@ kpt_thresh: 0.2
 visual: True
 warmup_frame: 50
 
+#图片
 DET:
   model_dir: https://bj.bcebos.com/v1/paddledet/models/pipeline/mot_ppyoloe_l_36e_pipeline.zip
   batch_size: 1
@@ -12,7 +13,7 @@ MOT:
   model_dir: https://bj.bcebos.com/v1/paddledet/models/pipeline/mot_ppyoloe_l_36e_pipeline.zip
   tracker_config: deploy/pipeline/config/tracker_config.yml
   batch_size: 1
-  skip_frame_num: -1 # preferably no more than 3
+  skip_frame_num: 3 # preferably no more than 3
   enable: False
 
 KPT:
@@ -46,7 +47,7 @@ ID_BASED_DETACTION:
   batch_size: 8
   threshold: 0.6
   display_frames: 80
-  skip_frame_num: 2
+  skip_frame_num: 3
   enable: False
 
 ID_BASED_CLSACTION:
@@ -54,7 +55,7 @@ ID_BASED_CLSACTION:
   batch_size: 8
   threshold: 0.8
   display_frames: 80
-  skip_frame_num: 2
+  skip_frame_num: 3
   enable: False
 
 REID:

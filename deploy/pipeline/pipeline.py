@@ -11,21 +11,27 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-import os
-import yaml
-import glob
-import cv2
-import numpy as np
-import math
-import paddle
-import sys
+import traceback
 import copy
-import threading
+import math
+import os
 import queue
+import sys
+import threading
 import time
 from collections import defaultdict
+import signal
+
+import cv2
+import numpy as np
+import paddle
+
 from datacollector import DataCollector, Result
+
+from report_status import task_heart_beat
+
+from thread_quit_signal import thread_quit_signal
+
 try:
     from collections.abc import Sequence
 except Exception:
@@ -40,11 +46,12 @@ from pipe_utils import PipeTimer
 from pipe_utils import get_test_images, crop_image_with_det, crop_image_with_mot, parse_mot_res, parse_mot_keypoint
 from pipe_utils import PushStream
 
-from python.infer import Detector, DetectorPicoDet
+from python.infer import Detector
 from python.keypoint_infer import KeyPointDetector
 from python.keypoint_postprocess import translate_to_ori_images
 from python.preprocess import decode_image, ShortSizeScale
-from python.visualize import visualize_box_mask, visualize_attr, visualize_pose, visualize_action, visualize_vehicleplate, visualize_vehiclepress, visualize_lane, visualize_vehicle_retrograde
+from python.visualize import visualize_box_mask, visualize_attr, visualize_pose, visualize_action, \
+    visualize_vehicleplate, visualize_vehiclepress, visualize_lane, visualize_vehicle_retrograde
 
 from pptracking.python.mot_sde_infer import SDE_Detector
 from pptracking.python.mot.visualize import plot_tracking_dict
@@ -65,6 +72,8 @@ from ppvehicle.lane_seg_infer import LaneSegPredictor
 
 from download import auto_download_model
 
+
+thread_quit_signal = thread_quit_signal()
 
 class Pipeline(object):
     """
@@ -157,7 +166,7 @@ class Pipeline(object):
                 thread = threading.Thread(
                     name=str(idx).zfill(3),
                     target=predictor.run,
-                    args=(input, idx))
+                    args=(input,thread_quit_signal, idx))
                 threads.append(thread)
 
             for thread in threads:
@@ -176,7 +185,7 @@ class Pipeline(object):
                     output_dir=self.output_dir)
 
         else:
-            self.predictor.run(self.input)
+            self.predictor.run(self.input,thread_quit_signal)
 
     def run(self):
         if self.multi_camera:
@@ -202,9 +211,9 @@ def get_model_dir(cfg):
         Otherwise it will use the model_path directly.
     """
     for key in cfg.keys():
-        if type(cfg[key]) ==  dict and \
-            ("enable" in cfg[key].keys() and cfg[key]['enable']
-                or "enable" not in cfg[key].keys()):
+        if type(cfg[key]) == dict and \
+                ("enable" in cfg[key].keys() and cfg[key]['enable']
+                 or "enable" not in cfg[key].keys()):
 
             if "model_dir" in cfg[key].keys():
                 model_dir = cfg[key]["model_dir"]
@@ -263,6 +272,8 @@ class PipePredictor(object):
 
     def __init__(self, args, cfg, is_video=True, multi_camera=False):
         # general module for pphuman and ppvehicle
+        print("args:")
+        print(args)
         self.with_mot = cfg.get('MOT', False)['enable'] if cfg.get(
             'MOT', False) else False
         self.with_human_attr = cfg.get('ATTR', False)['enable'] if cfg.get(
@@ -281,10 +292,10 @@ class PipePredictor(object):
                                                         False) else False
         self.with_idbased_detaction = cfg.get(
             'ID_BASED_DETACTION', False)['enable'] if cfg.get(
-                'ID_BASED_DETACTION', False) else False
+            'ID_BASED_DETACTION', False) else False
         self.with_idbased_clsaction = cfg.get(
             'ID_BASED_CLSACTION', False)['enable'] if cfg.get(
-                'ID_BASED_CLSACTION', False) else False
+            'ID_BASED_CLSACTION', False) else False
         self.with_mtmct = cfg.get('REID', False)['enable'] if cfg.get(
             'REID', False) else False
 
@@ -320,7 +331,7 @@ class PipePredictor(object):
 
         self.with_vehicle_retrograde = cfg.get(
             'VEHICLE_RETROGRADE', False)['enable'] if cfg.get(
-                'VEHICLE_RETROGRADE', False) else False
+            'VEHICLE_RETROGRADE', False) else False
         if self.with_vehicle_retrograde:
             print('Vehicle Retrograde Recognition enabled')
 
@@ -348,7 +359,7 @@ class PipePredictor(object):
         self.is_video = is_video
         self.multi_camera = multi_camera
         self.cfg = cfg
-
+        self.draw_mark = args.draw_mark
         self.output_dir = args.output_dir
         self.draw_center_traj = args.draw_center_traj
         self.secs_interval = args.secs_interval
@@ -479,7 +490,7 @@ class PipePredictor(object):
                     vehicleretrograde_cfg)
 
             if self.with_mot or self.modebase["idbased"] or self.modebase[
-                    "skeletonbased"]:
+                "skeletonbased"]:
                 mot_cfg = self.cfg['MOT']
                 model_dir = mot_cfg['model_dir']
                 tracker_config = mot_cfg['tracker_config']
@@ -528,9 +539,9 @@ class PipePredictor(object):
     def get_result(self):
         return self.collector.get_res()
 
-    def run(self, input, thread_idx=0):
+    def run(self, input,_thread_quit_signal, thread_idx=0):
         if self.is_video:
-            self.predict_video(input, thread_idx=thread_idx)
+            self.predict_video(input,_thread_quit_signal, thread_idx=thread_idx)
         else:
             self.predict_image(input)
         self.pipe_timer.info()
@@ -637,48 +648,77 @@ class PipePredictor(object):
             if self.cfg['visual']:
                 self.visualize_image(batch_file, batch_input, self.pipeline_res)
 
-    def capturevideo(self, capture, queue):
+    def capturevideo(self, capture, queue,_thread_quit_signal):
         frame_id = 0
-        while (1):
-            if queue.full():
-                time.sleep(0.1)
-            else:
-                ret, frame = capture.read()
-                if not ret:
-                    return
-                frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-                queue.put(frame_rgb)
+        while not _thread_quit_signal.GetQuit():
+            try:
+                if queue.full():
+                    # print("队列已满")
+                    time.sleep(0.1)
+                else:
+                    ret, frame = capture.read()
+                    if not ret:
+                        print("捕获视频失败")
+                        return
+                    frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                    queue.put(frame_rgb)
+            except:
+                print("捕获视频源出现异常--------------------------->")
+                print(traceback.format_exc())
+                break
 
-    def predict_video(self, video_file, thread_idx=0):
+
+    def predict_video(self, video_file,_thread_quit_signal, thread_idx=0):
         # mot
         # mot -> attr
         # mot -> pose -> action
+        # print("video_file:"+str(video_file))
         capture = cv2.VideoCapture(video_file)
+        # capture.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc('M', 'J', 'P', 'G'))
+        # while(True):
+        #     if capture.isOpened():
+        #         capture.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
+        #         # capture.set(4, 360)
+        #         capture.set(cv2.CAP_PROP_FRAME_HEIGHT, 360)
+        #         capture.set(cv2.CAP_PROP_FPS, 20)
+        #         print("摄像头已开启")
+        #         break
+        #     else:
+        #         print("摄像头未开启")
+        #         time.sleep(0.1)
 
+        # 设置分辨率
+        # capture.set(3, 640)
+        capture.set(cv2.CAP_PROP_FRAME_WIDTH,1280)
+        # # capture.set(4, 360)
+        capture.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
+        capture.set(cv2.CAP_PROP_FPS,30)
         # Get Video info : resolution, fps, frame count
         width = int(capture.get(cv2.CAP_PROP_FRAME_WIDTH))
         height = int(capture.get(cv2.CAP_PROP_FRAME_HEIGHT))
         fps = int(capture.get(cv2.CAP_PROP_FPS))
+        if fps <= 0:
+            fps = 30
         frame_count = int(capture.get(cv2.CAP_PROP_FRAME_COUNT))
         print("video fps: %d, frame_count: %d" % (fps, frame_count))
 
         if len(self.pushurl) > 0:
             video_out_name = 'output' if self.file_name is None else self.file_name
-            pushurl = os.path.join(self.pushurl, video_out_name)
+            pushurl = self.pushurl  # os.path.join(self.pushurl, video_out_name)
             print("the result will push stream to url:{}".format(pushurl))
             pushstream = PushStream(pushurl)
             pushstream.initcmd(fps, width, height)
         elif self.cfg['visual']:
             video_out_name = 'output' if (
-                self.file_name is None or
-                type(self.file_name) == int) else self.file_name
+                    self.file_name is None or
+                    type(self.file_name) == int) else self.file_name
             if type(video_file) == str and "rtsp" in video_file:
                 video_out_name = video_out_name + "_t" + str(thread_idx).zfill(
                     2) + "_rtsp"
             if not os.path.exists(self.output_dir):
                 os.makedirs(self.output_dir)
             out_path = os.path.join(self.output_dir, video_out_name + ".mp4")
-            fourcc = cv2.VideoWriter_fourcc(* 'mp4v')
+            fourcc = cv2.VideoWriter_fourcc(*'mp4v')
             writer = cv2.VideoWriter(out_path, fourcc, fps, (width, height))
 
         frame_id = 0
@@ -730,15 +770,23 @@ class PipePredictor(object):
         framequeue = queue.Queue(10)
 
         thread = threading.Thread(
-            target=self.capturevideo, args=(capture, framequeue))
+            target=self.capturevideo, args=(capture, framequeue,_thread_quit_signal))
         thread.start()
         time.sleep(1)
-
-        while (not framequeue.empty()):
-            if frame_id % 10 == 0:
-                print('Thread: {}; frame id: {}'.format(thread_idx, frame_id))
+        while not _thread_quit_signal.GetQuit():
+        # while (not framequeue.empty()):
+        #     print("Get--------------->")
+            if framequeue.empty():
+                print("队列没有内容")
+                time.sleep(0.3)
+                continue
+            # if frame_id % 10 == 0:
+            #     print('Thread: {}; frame id: {}'.format(thread_idx, frame_id))
 
             frame_rgb = framequeue.get()
+            # TODO 此处进行图片区域裁切
+
+            # print("取出队列")
             if frame_id > self.warmup_frame:
                 self.pipe_timer.total_time.start()
 
@@ -762,9 +810,9 @@ class PipePredictor(object):
                     self.pipe_timer.module_time['mot'].end()
                     self.pipe_timer.track_num += len(mot_res['boxes'])
 
-                if frame_id % 10 == 0:
-                    print("Thread: {}; trackid number: {}".format(
-                        thread_idx, len(mot_res['boxes'])))
+                # if frame_id % 10 == 0:
+                #     print("Thread: {}; trackid number: {}".format(
+                #         thread_idx, len(mot_res['boxes'])))
 
                 # flow_statistic only support single class MOT
                 boxes, scores, ids = res[0]  # batch size = 1 in MOT
@@ -1015,13 +1063,12 @@ class PipePredictor(object):
                     self.pipe_timer.module_time['vehicle_retrograde'].start()
 
                 if frame_id % sample_freq == 0:
-
                     frame_mot_res = copy.deepcopy(self.pipeline_res.get('mot'))
                     self.vehicle_retrograde_predictor.update_center_traj(
                         frame_mot_res, max_len=frame_len)
                     retrograde_traj_len = retrograde_traj_len + 1
 
-                #the number of collected frames is enough to predict 
+                # the number of collected frames is enough to predict
                 if retrograde_traj_len == frame_len:
                     retrograde_mot_res = copy.deepcopy(
                         self.pipeline_res.get('mot'))
@@ -1143,7 +1190,7 @@ class PipePredictor(object):
                 illegal_parking_dict=illegal_parking_dict,
                 entrance=entrance,
                 records=records,
-                center_traj=center_traj)
+                center_traj=center_traj,draw_mark=self.draw_mark)
 
         human_attr_res = result.get('attr')
         if human_attr_res is not None:
@@ -1258,7 +1305,7 @@ class PipePredictor(object):
                 det_res_i = {}
                 boxes_num_i = det_res['boxes_num'][i]
                 det_res_i['boxes'] = det_res['boxes'][start_idx:start_idx +
-                                                      boxes_num_i, :]
+                                                                boxes_num_i, :]
                 im = visualize_box_mask(
                     im,
                     det_res_i,
@@ -1268,16 +1315,16 @@ class PipePredictor(object):
                 im = cv2.cvtColor(im, cv2.COLOR_RGB2BGR)
             if human_attr_res is not None:
                 human_attr_res_i = human_attr_res['output'][start_idx:start_idx
-                                                            + boxes_num_i]
+                                                                      + boxes_num_i]
                 im = visualize_attr(im, human_attr_res_i, det_res_i['boxes'])
             if vehicle_attr_res is not None:
                 vehicle_attr_res_i = vehicle_attr_res['output'][
-                    start_idx:start_idx + boxes_num_i]
+                                     start_idx:start_idx + boxes_num_i]
                 im = visualize_attr(im, vehicle_attr_res_i, det_res_i['boxes'])
             if vehicleplate_res is not None:
                 plates = vehicleplate_res['vehicleplate']
                 det_res_i['boxes'][:, 4:6] = det_res_i[
-                    'boxes'][:, 4:6] - det_res_i['boxes'][:, 2:4]
+                                                 'boxes'][:, 4:6] - det_res_i['boxes'][:, 2:4]
                 im = visualize_vehicleplate(im, plates, det_res_i['boxes'])
             if vehiclepress_res is not None:
                 press_vehicle = vehiclepress_res['output'][i]
@@ -1298,6 +1345,23 @@ class PipePredictor(object):
             print("save result to: " + out_path)
             start_idx += boxes_num_i
 
+def quit(signum, frame):
+    print('system exit')
+    thread_quit_signal.SetQuit()
+    sys.exit()
+
+
+def report_heart_beat(task_id,report_url,_thread_quit_signal):
+    while not _thread_quit_signal.GetQuit():
+        task_heart_beat(task_id,report_url)
+        time.sleep(5)
+
+
+def run_heart_beat(args):
+    threading.Thread(
+        name="run_heart_beat_thread",
+        target=report_heart_beat,
+        args=(args.task_id,args.heart_beat,thread_quit_signal)).start()
 
 def main():
     cfg = merge_cfg(FLAGS)  # use command params to update config
@@ -1310,12 +1374,14 @@ def main():
 
 if __name__ == '__main__':
     paddle.enable_static()
-
+    signal.signal(signal.SIGINT, quit)
+    signal.signal(signal.SIGTERM, quit)
     # parse params from command
     parser = argsparser()
     FLAGS = parser.parse_args()
     FLAGS.device = FLAGS.device.upper()
     assert FLAGS.device in ['CPU', 'GPU', 'XPU', 'NPU'
                             ], "device should be CPU, GPU, XPU or NPU"
-
+    print(FLAGS)
+    run_heart_beat(FLAGS)
     main()

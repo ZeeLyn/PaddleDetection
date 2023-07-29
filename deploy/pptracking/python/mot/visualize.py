@@ -198,15 +198,17 @@ def plot_tracking_dict(image,
                        illegal_parking_dict=None,
                        entrance=None,
                        records=None,
-                       center_traj=None):
+                       center_traj=None,draw_mark=True):
     im = np.ascontiguousarray(np.copy(image))
     im_h, im_w = im.shape[:2]
     if do_break_in_counting or do_illegal_parking_recognition:
         entrance = np.array(entrance[:-1])  # last pair is [im_w, im_h] 
 
     text_scale = max(0.5, image.shape[1] / 3000.)
-    text_thickness = 2
+    text_thickness = 1
     line_thickness = max(1, int(image.shape[1] / 500.))
+    line_thickness=1
+    # print("线条粗细："+str(line_thickness))
 
     if num_classes == 1:
         if records is not None:
@@ -221,6 +223,7 @@ def plot_tracking_dict(image,
 
     if num_classes == 1 and do_entrance_counting:
         entrance_line = tuple(map(int, entrance))
+        # print("画框1")
         cv2.rectangle(
             im,
             entrance_line[0:2],
@@ -269,7 +272,7 @@ def plot_tracking_dict(image,
                 plate = value['plate']
                 if plate is None:
                     plate = ""
-
+                # print("画框2")
                 # red box
                 cv2.rectangle(im, (int(x1), int(y1)),
                               (int(x1 + w), int(y1 + h)), (0, 0, 255), 2)
@@ -312,7 +315,7 @@ def plot_tracking_dict(image,
             else:
                 id_text = 'class{}_{}'.format(cls_id, id_text)
 
-            _line_thickness = 1 if obj_id <= 0 else line_thickness
+            _line_thickness = 1.5 if obj_id <= 0 else line_thickness
 
             in_region = False
             if do_break_in_counting:
@@ -324,37 +327,40 @@ def plot_tracking_dict(image,
 
             color = get_color(abs(obj_id)) if in_region == False else (0, 0,
                                                                        255)
-            cv2.rectangle(
-                im,
-                intbox[0:2],
-                intbox[2:4],
-                color=color,
-                thickness=line_thickness)
-            cv2.putText(
-                im,
-                id_text, (intbox[0], intbox[1] - 25),
-                cv2.FONT_ITALIC,
-                text_scale,
-                color,
-                thickness=text_thickness)
-
-            if do_break_in_counting and in_region:
+            # print("画框3")
+            # TODO 是否在图片上画出标记信息
+            if draw_mark:
+                cv2.rectangle(
+                    im,
+                    intbox[0:2],
+                    intbox[2:4],
+                    color=color,
+                    thickness=line_thickness)
                 cv2.putText(
                     im,
-                    'Break in now.', (intbox[0], intbox[1] - 50),
-                    cv2.FONT_ITALIC,
-                    text_scale, (0, 0, 255),
-                    thickness=text_thickness)
-
-            if scores is not None:
-                text = 'score: {:.2f}'.format(float(scores[i]))
-                cv2.putText(
-                    im,
-                    text, (intbox[0], intbox[1] - 6),
+                    id_text, (intbox[0], intbox[1] - 25),
                     cv2.FONT_ITALIC,
                     text_scale,
                     color,
                     thickness=text_thickness)
+
+                if do_break_in_counting and in_region:
+                    cv2.putText(
+                        im,
+                        'Break in now.', (intbox[0], intbox[1] - 50),
+                        cv2.FONT_ITALIC,
+                        text_scale, (0, 0, 255),
+                        thickness=text_thickness)
+
+                if scores is not None:
+                    text = 'score: {:.2f}'.format(float(scores[i]))
+                    cv2.putText(
+                        im,
+                        text, (intbox[0], intbox[1] - 6),
+                        cv2.FONT_ITALIC,
+                        text_scale,
+                        color,
+                        thickness=text_thickness)
         if center_traj is not None:
             for traj in center_traj:
                 for i in traj.keys():

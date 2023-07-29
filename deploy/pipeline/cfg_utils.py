@@ -41,6 +41,10 @@ class ArgsParser(ArgumentParser):
                         cur = cur[key]
         return config
 
+def boolean_string(s):
+    if s not in {'False', 'True'}:
+        return False
+    return s == 'True'
 
 def argsparser():
     parser = ArgsParser()
@@ -51,6 +55,13 @@ def argsparser():
         default=None,
         help=("Path of configure"),
         required=True)
+
+    parser.add_argument("--heart_beat",type=str,default=None,help="任务心跳上报地址")
+
+    parser.add_argument("--task_id",type=str,default=None,required=True,help="分配任务编号")
+
+    parser.add_argument("--draw_mark",type=boolean_string,default=True,help="是否标记人体")
+
     parser.add_argument(
         "--image_file", type=str, default=None, help="Path of image file.")
     parser.add_argument(

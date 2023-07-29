@@ -1,0 +1,1 @@
+ python deploy/pipeline/pipeline.py --config deploy/pipeline/config/infer_cfg_pphuman.yml --task_id=task1 --draw_mark=False -o MOT.enable=True --video_file=./demo_input/test_720p.mp4 --device=gpu --output_dir=demo_output --do_entrance_counting

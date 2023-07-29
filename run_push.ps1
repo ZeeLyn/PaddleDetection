@@ -1,0 +1,1 @@
+python deploy/pipeline/pipeline.py --config deploy/pipeline/config/infer_cfg_pphuman.yml --heart_beat=  --task_id=task1 -o MOT.enable=True --device=gpu  --rtsp="rtmp://live.stream.inlarks.com/live/tracking_source" --pushurl="rtmp://live.push.inlarks.com/live/tracking_target?txSecret=b4e96ace52c79da17c8cd615d95a6ace&txTime=656816F4"

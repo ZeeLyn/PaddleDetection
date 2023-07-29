@@ -152,7 +152,7 @@ def draw_box(im, np_boxes, labels, threshold=0.5):
             x1, y1, x2, y2, x3, y3, x4, y4 = bbox
             draw.line(
                 [(x1, y1), (x2, y2), (x3, y3), (x4, y4), (x1, y1)],
-                width=2,
+                width=1,
                 fill=color)
             xmin = min(x1, x2, x3, x4)
             ymin = min(y1, y2, y3, y4)

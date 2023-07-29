@@ -134,10 +134,16 @@ class PushStream(object):
         self.pushurl = pushurl
 
     def initcmd(self, fps, width, height):
+        # self.command = [
+        #     'ffmpeg', '-y', '-f', 'rawvideo', '-vcodec', 'rawvideo', '-pix_fmt',
+        #     'bgr24', '-s', "{}x{}".format(width, height), '-r', str(fps), '-i',
+        #     '-', '-pix_fmt', 'yuv420p', '-f', 'rtsp', self.pushurl
+        # ]
+
         self.command = [
-            'ffmpeg', '-y', '-f', 'rawvideo', '-vcodec', 'rawvideo', '-pix_fmt',
-            'bgr24', '-s', "{}x{}".format(width, height), '-r', str(fps), '-i',
-            '-', '-pix_fmt', 'yuv420p', '-f', 'rtsp', self.pushurl
+            'ffmpeg','-re', '-y', '-f', 'rawvideo', '-vcodec', 'rawvideo', '-pix_fmt',
+            'bgr24', '-s', "{}x{}".format(width, height), '-r', str(40), '-i',
+            '-', '-c:v', 'libx264','-pix_fmt', 'yuv420p','-preset', 'ultrafast', '-f', 'flv', self.pushurl
         ]
         self.pipe = sp.Popen(self.command, stdin=sp.PIPE)
 

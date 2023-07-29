@@ -86,7 +86,6 @@ def draw_bbox(image, im_id, catid2name, bboxes, threshold):
     Draw bbox on image
     """
     draw = ImageDraw.Draw(image)
-
     catid2color = {}
     color_list = colormap(rgb=True)[:40]
     for dt in np.array(bboxes):
