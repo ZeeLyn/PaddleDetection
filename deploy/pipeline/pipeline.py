@@ -28,7 +28,7 @@ import paddle
 
 from datacollector import DataCollector, Result
 
-from report_status import task_heart_beat
+from report_status import task_heart_beat,tracking_data_communicate
 
 from thread_quit_signal import thread_quit_signal
 
@@ -84,7 +84,8 @@ class Pipeline(object):
         cfg (dict): config of models in pipeline
     """
 
-    def __init__(self, args, cfg):
+    def __init__(self, args, cfg,tracking_data_communicate):
+        self.tracking_data_communicate = tracking_data_communicate
         self.multi_camera = False
         reid_cfg = cfg.get('REID', False)
         self.enable_mtmct = reid_cfg['enable'] if reid_cfg else False
@@ -166,7 +167,7 @@ class Pipeline(object):
                 thread = threading.Thread(
                     name=str(idx).zfill(3),
                     target=predictor.run,
-                    args=(input,thread_quit_signal, idx))
+                    args=(input,thread_quit_signal,self.tracking_data_communicate, idx))
                 threads.append(thread)
 
             for thread in threads:
@@ -185,7 +186,7 @@ class Pipeline(object):
                     output_dir=self.output_dir)
 
         else:
-            self.predictor.run(self.input,thread_quit_signal)
+            self.predictor.run(self.input,thread_quit_signal,self.tracking_data_communicate)
 
     def run(self):
         if self.multi_camera:
@@ -537,9 +538,9 @@ class PipePredictor(object):
     def get_result(self):
         return self.collector.get_res()
 
-    def run(self, input,_thread_quit_signal, thread_idx=0):
+    def run(self, input,_thread_quit_signal,_tracking_data_communicate, thread_idx=0):
         if self.is_video:
-            self.predict_video(input,_thread_quit_signal, thread_idx=thread_idx)
+            self.predict_video(input,_thread_quit_signal,_tracking_data_communicate, thread_idx=thread_idx)
         else:
             self.predict_image(input)
         self.pipe_timer.info()
@@ -666,7 +667,7 @@ class PipePredictor(object):
                 break
 
 
-    def predict_video(self, video_file,_thread_quit_signal, thread_idx=0):
+    def predict_video(self, video_file,_thread_quit_signal,_tracking_data_communicate, thread_idx=0):
         # mot
         # mot -> attr
         # mot -> pose -> action
@@ -832,7 +833,7 @@ class PipePredictor(object):
                     records,
                     ids2names=self.mot_predictor.pred_config.labels)
                 records = statistic['records']
-
+                _tracking_data_communicate.Set(len(statistic['id_set']),len(statistic['in_id_list']),len(statistic['out_id_list']))
                 if self.illegal_parking_time != -1:
                     object_in_region_info, illegal_parking_dict = update_object_info(
                         object_in_region_info, mot_result, self.region_type,
@@ -1349,23 +1350,24 @@ def quit(signum, frame):
     sys.exit()
 
 
-def report_heart_beat(task_id,report_url,_thread_quit_signal):
+def report_heart_beat(task_id,report_url,_thread_quit_signal,_tracking_data_communicate):
     while not _thread_quit_signal.GetQuit():
-        task_heart_beat(task_id,report_url)
+        task_heart_beat(task_id,report_url,_tracking_data_communicate)
         time.sleep(5)
 
 
-def run_heart_beat(args):
+def run_heart_beat(args,_tracking_data_communicate):
     threading.Thread(
         name="run_heart_beat_thread",
         target=report_heart_beat,
-        args=(args.task_id,args.heart_beat,thread_quit_signal)).start()
+        args=(args.task_id,args.heart_beat,thread_quit_signal,_tracking_data_communicate)).start()
 
 def main():
     cfg = merge_cfg(FLAGS)  # use command params to update config
     print_arguments(cfg)
-
-    pipeline = Pipeline(FLAGS, cfg)
+    _tracking_data_communicate= tracking_data_communicate()
+    run_heart_beat(FLAGS, _tracking_data_communicate)
+    pipeline = Pipeline(FLAGS, cfg,_tracking_data_communicate)
     # pipeline.run()
     pipeline.run_multithreads()
 
@@ -1380,5 +1382,5 @@ if __name__ == '__main__':
     FLAGS.device = FLAGS.device.upper()
     assert FLAGS.device in ['CPU', 'GPU', 'XPU', 'NPU'
                             ], "device should be CPU, GPU, XPU or NPU"
-    run_heart_beat(FLAGS)
+
     main()
