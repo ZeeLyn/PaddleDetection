@@ -1,1 +1,1 @@
- python deploy/pipeline/pipeline.py --config deploy/pipeline/config/infer_cfg_pphuman.yml --heart_beat= --task_id=task1 --draw_mark=True  --imshow=True -o MOT.enable=True --video_file=./demo_input/test.mp4 --device=gpu --output_dir=demo_output
+ python deploy/pipeline/pipeline.py --config deploy/pipeline/config/infer_cfg_pphuman.yml --heart_beat= --task_id=task1 --draw_mark=True  --imshow=True --startX=200  --startY=100 --endX=1000 --endY=800  -o MOT.enable=True --video_file=./demo_input/test.mp4 --device=gpu --output_dir=demo_output

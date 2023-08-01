@@ -64,6 +64,11 @@ def argsparser():
 
     parser.add_argument("--imshow", type=boolean_string, default=False, help="是否通过cv2展示跟踪画面")
 
+    parser.add_argument("--startX",type=int,default=0,help="检测区域开始坐标X")
+    parser.add_argument("--startY", type=int, default=0, help="检测区域开始坐标Y")
+    parser.add_argument("--endX", type=int, default=0, help="检测区域结束坐标X")
+    parser.add_argument("--endY", type=int, default=0, help="检测区域结束坐标Y")
+
     parser.add_argument(
         "--image_file", type=str, default=None, help="Path of image file.")
     parser.add_argument(

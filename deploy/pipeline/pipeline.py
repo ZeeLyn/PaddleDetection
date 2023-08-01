@@ -775,7 +775,10 @@ class PipePredictor(object):
             target=self.capturevideo, args=(capture, framequeue,_thread_quit_signal))
         thread.start()
         time.sleep(1)
-        tracking_area = (300, 300, 1400, 1000)  # x1,y1,x2,y2
+        tracking_area = None   # x1,y1,x2,y2
+        if self.args.startX>0 and self.args.startY>0 and self.args.endX>0 and self.args.endY>0 and self.args.endX-self.args.startX>=400 and self.args.endY-self.args.startY>=400:
+            tracking_area=(self.args.startX,self.args.startY,self.args.endX,self.args.endY)
+
         while not _thread_quit_signal.GetQuit():
         # while (not framequeue.empty()):
         #     print("Get--------------->")
