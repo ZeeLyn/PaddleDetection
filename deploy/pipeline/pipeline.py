@@ -775,6 +775,7 @@ class PipePredictor(object):
             target=self.capturevideo, args=(capture, framequeue,_thread_quit_signal))
         thread.start()
         time.sleep(1)
+        tracking_area = (300, 300, 1400, 1000)  # x1,y1,x2,y2
         while not _thread_quit_signal.GetQuit():
         # while (not framequeue.empty()):
         #     print("Get--------------->")
@@ -788,7 +789,16 @@ class PipePredictor(object):
             frame_rgb = framequeue.get()
             # TODO 此处进行图片区域裁切
 
+            if self.args.draw_mark and tracking_area is not None:
+                cv2.rectangle(
+                    frame_rgb,
+                    (tracking_area[0],tracking_area[1]),
+                    (tracking_area[2],tracking_area[3]),
+                    color=(208, 19, 246),
+                    thickness=2)
             # print("取出队列")
+
+
             if frame_id > self.warmup_frame:
                 self.pipe_timer.total_time.start()
 
@@ -804,7 +814,7 @@ class PipePredictor(object):
                     [copy.deepcopy(frame_rgb)],
                     visual=False,
                     reuse_det_result=reuse_det_result,
-                    frame_count=frame_id)
+                    frame_count=frame_id,tracking_area=tracking_area)
 
                 # mot output format: id, class, score, xmin, ymin, xmax, ymax
                 mot_res = parse_mot_res(res)
@@ -834,7 +844,7 @@ class PipePredictor(object):
                     out_id_list,
                     prev_center,
                     records,
-                    ids2names=self.mot_predictor.pred_config.labels)
+                    ids2names=self.mot_predictor.pred_config.labels,draw_mark=self.args.draw_mark)
                 records = statistic['records']
                 # cv2.imshow("prev",frame_rgb)
                 _tracking_data_communicate.Set(len(statistic['id_set']),len(statistic['in_id_list']),len(statistic['out_id_list']))
@@ -858,7 +868,7 @@ class PipePredictor(object):
                         _, _, fps = self.pipe_timer.get_total_time()
                         im = self.visualize_video(
                             frame_rgb, mot_res, self.collector, frame_id, fps,
-                            entrance, records, center_traj)  # visualize
+                            entrance, records, center_traj,tracking_area=tracking_area)  # visualize
                         if len(self.pushurl) > 0:
                             pushstream.pipe.stdin.write(im.tobytes())
                         else:
@@ -1129,7 +1139,7 @@ class PipePredictor(object):
                                           self.collector, frame_id, fps,
                                           entrance, records, center_traj,
                                           self.illegal_parking_time != -1,
-                                          illegal_parking_dict)  # visualize
+                                          illegal_parking_dict,tracking_area=tracking_area)  # visualize
 
                 if len(self.pushurl) > 0:
                     pushstream.pipe.stdin.write(im.tobytes())
@@ -1154,7 +1164,7 @@ class PipePredictor(object):
                         records=None,
                         center_traj=None,
                         do_illegal_parking_recognition=False,
-                        illegal_parking_dict=None):
+                        illegal_parking_dict=None,tracking_area=None):
         image = cv2.cvtColor(image_rgb, cv2.COLOR_RGB2BGR)
         mot_res = copy.deepcopy(result.get('mot'))
 
@@ -1194,7 +1204,7 @@ class PipePredictor(object):
                 illegal_parking_dict=illegal_parking_dict,
                 entrance=entrance,
                 records=records,
-                center_traj=center_traj,draw_mark=self.draw_mark)
+                center_traj=center_traj,draw_mark=self.draw_mark,tracking_area=tracking_area)
 
         human_attr_res = result.get('attr')
         if human_attr_res is not None:

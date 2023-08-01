@@ -1,1 +1,1 @@
- python deploy/pipeline/pipeline.py --config deploy/pipeline/config/infer_cfg_pphuman.yml --heart_beat= --task_id=task1 --draw_mark=True  --imshow=True -o MOT.enable=True --video_file=./demo_input/test.mp4 --device=gpu --output_dir=demo_output --do_entrance_counting
+ python deploy/pipeline/pipeline.py --config deploy/pipeline/config/infer_cfg_pphuman.yml --heart_beat= --task_id=task1 --draw_mark=True  --imshow=True -o MOT.enable=True --video_file=./demo_input/test.mp4 --device=gpu --output_dir=demo_output

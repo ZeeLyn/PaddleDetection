@@ -264,7 +264,7 @@ class SDE_Detector(Detector):
         result['boxes'] = result['boxes'][keep_idx]
         np_boxes_num = [len(result['boxes'])]
         if np_boxes_num[0] <= 0:
-            print('[WARNNING] No object detected.')
+            # print('[WARNNING] No object detected.')
             result = {'boxes': np.zeros([0, 6]), 'boxes_num': [0]}
         result = {k: v for k, v in result.items() if v is not None}
         return result
@@ -470,7 +470,7 @@ class SDE_Detector(Detector):
                       visual=True,
                       seq_name=None,
                       reuse_det_result=False,
-                      frame_count=0):
+                      frame_count=0,tracking_area=None):
         num_classes = self.num_classes
         image_list.sort()
         ids2names = self.pred_config.labels
@@ -482,6 +482,8 @@ class SDE_Detector(Detector):
             if self.do_mtmct:
                 if frame_id % 10 == 0:
                     print('Tracking frame: %d' % (frame_id))
+            if tracking_area is not None:
+                img_file = img_file[tracking_area[1]:tracking_area[3], tracking_area[0]:tracking_area[2]]
             batch_image_list = [img_file]  # bs=1 in MOT model
             frame, _ = decode_image(img_file, {})
             if run_benchmark:

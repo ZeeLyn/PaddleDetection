@@ -198,7 +198,7 @@ def plot_tracking_dict(image,
                        illegal_parking_dict=None,
                        entrance=None,
                        records=None,
-                       center_traj=None,draw_mark=True):
+                       center_traj=None,draw_mark=True,tracking_area=None):
     im = np.ascontiguousarray(np.copy(image))
     im_h, im_w = im.shape[:2]
     if do_break_in_counting or do_illegal_parking_recognition:
@@ -211,7 +211,7 @@ def plot_tracking_dict(image,
     # print("线条粗细："+str(line_thickness))
 
     if num_classes == 1:
-        if records is not None:
+        if records is not None and draw_mark:
             start = records[-1].find('Total')
             end = records[-1].find('In')
             cv2.putText(
@@ -289,13 +289,15 @@ def plot_tracking_dict(image,
         tlwhs = tlwhs_dict[cls_id]
         obj_ids = obj_ids_dict[cls_id]
         scores = scores_dict[cls_id]
-        cv2.putText(
-            im,
-            'frame: %d fps: %.2f num: %d' % (frame_id, fps, len(tlwhs)),
-            (0, int(15 * text_scale) + 5),
-            cv2.FONT_ITALIC,
-            text_scale, (0, 0, 255),
-            thickness=text_thickness)
+
+        if draw_mark:
+            cv2.putText(
+                im,
+                'frame: %d fps: %.2f num: %d' % (frame_id, fps, len(tlwhs)),
+                (0, int(15 * text_scale) + 5),
+                cv2.FONT_ITALIC,
+                text_scale, (0, 0, 255),
+                thickness=text_thickness)
 
         record_id = set()
         for i, tlwh in enumerate(tlwhs):
@@ -330,15 +332,26 @@ def plot_tracking_dict(image,
             # print("画框3")
             # TODO 是否在图片上画出标记信息
             if draw_mark:
+                box_pt1= intbox[0:2]
+                box_pt2=  intbox[2:4]
+                if tracking_area is not None:
+                    box_pt1=(box_pt1[0]+tracking_area[0],box_pt1[1]+tracking_area[1])
+                    box_pt2=(box_pt2[0]+tracking_area[0],box_pt2[1]+tracking_area[1])
+
                 cv2.rectangle(
                     im,
-                    intbox[0:2],
-                    intbox[2:4],
+                    box_pt1,
+                    box_pt2,
                     color=color,
                     thickness=line_thickness)
+
+                info_txt_org=(intbox[0],intbox[1])
+                if tracking_area is not None:
+                    info_txt_org=(intbox[0]+tracking_area[0],info_txt_org[1]+tracking_area[1])
+
                 cv2.putText(
                     im,
-                    id_text, (intbox[0], intbox[1] - 25),
+                    id_text, (info_txt_org[0], info_txt_org[1] - 25),
                     cv2.FONT_ITALIC,
                     text_scale,
                     color,
@@ -347,7 +360,7 @@ def plot_tracking_dict(image,
                 if do_break_in_counting and in_region:
                     cv2.putText(
                         im,
-                        'Break in now.', (intbox[0], intbox[1] - 50),
+                        'Break in now.', (info_txt_org[0], info_txt_org[1] - 50),
                         cv2.FONT_ITALIC,
                         text_scale, (0, 0, 255),
                         thickness=text_thickness)
@@ -356,7 +369,7 @@ def plot_tracking_dict(image,
                     text = 'score: {:.2f}'.format(float(scores[i]))
                     cv2.putText(
                         im,
-                        text, (intbox[0], intbox[1] - 6),
+                        text, (info_txt_org[0], info_txt_org[1] - 6),
                         cv2.FONT_ITALIC,
                         text_scale,
                         color,

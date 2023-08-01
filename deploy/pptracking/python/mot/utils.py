@@ -224,7 +224,7 @@ def flow_statistic(result,
                    prev_center,
                    records,
                    data_type='mot',
-                   ids2names=['pedestrian']):
+                   ids2names=['pedestrian'],draw_mark=True):
     # Count in/out number: 
     # Note that 'region_type' should be one of ['horizontal', 'vertical', 'custom'],
     # 'horizontal' and 'vertical' means entrance is the center line as the entrance when do_entrance_counting, 
@@ -315,6 +315,7 @@ def flow_statistic(result,
     if frame_id % video_fps == 0 and frame_id / video_fps % secs_interval == 0:
         curr_interval_count = len(interval_id_set)
         interval_id_set.clear()
+
     info = "Frame id: {}, Total count: {}".format(frame_id, len(id_set))
     if do_entrance_counting:
         info += ", In count: {}, Out count: {}".format(
