@@ -652,6 +652,7 @@ class PipePredictor(object):
 
     def capturevideo(self, capture, queue,_thread_quit_signal):
         frame_id = 0
+        fail_count=0
         while not _thread_quit_signal.GetQuit():
             try:
                 if queue.full():
@@ -660,13 +661,19 @@ class PipePredictor(object):
                 else:
                     ret, frame = capture.read()
                     if not ret:
-                        print("捕获视频失败")
+                        fail_count=fail_count+1
+                        print("读取视频源失败")
                         time.sleep(1)
-                        continue
+                        if fail_count<100:
+                            continue
+                        else:
+                            _thread_quit_signal.SetQuit()
+                            break
+                    fail_count=0
                     frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
                     queue.put(frame_rgb)
             except:
-                print("捕获视频源出现异常--------------------------->")
+                print("读取视频源出现异常--------------------------->")
                 print(traceback.format_exc())
                 break
 
