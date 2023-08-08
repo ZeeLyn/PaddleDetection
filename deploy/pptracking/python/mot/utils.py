@@ -304,7 +304,7 @@ def flow_statistic(result,
                 else:
                     prev_center[track_id] = [center_x, center_y]
 
-# Count totol number, number at a manual-setting interval
+    # Count totol number, number at a manual-setting interval
     frame_id, tlwhs, tscores, track_ids = result
     for tlwh, score, track_id in zip(tlwhs, tscores, track_ids):
         if track_id < 0: continue
@@ -338,6 +338,7 @@ def flow_statistic(result,
         "prev_center": prev_center,
         "records": records,
     }
+
 
 
 def distance(center_1, center_2):

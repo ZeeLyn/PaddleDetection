@@ -28,7 +28,7 @@ import paddle
 
 from datacollector import DataCollector, Result
 
-from report_status import task_heart_beat,tracking_data_communicate
+from report_status import tracking_data_report,tracking_data_communicate
 
 from thread_quit_signal import thread_quit_signal
 
@@ -661,7 +661,8 @@ class PipePredictor(object):
                     ret, frame = capture.read()
                     if not ret:
                         print("捕获视频失败")
-                        return
+                        time.sleep(1)
+                        continue
                     frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
                     queue.put(frame_rgb)
             except:
@@ -694,13 +695,14 @@ class PipePredictor(object):
         capture.set(cv2.CAP_PROP_FRAME_WIDTH,1280)
         # # capture.set(4, 360)
         capture.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
-        capture.set(cv2.CAP_PROP_FPS,30)
+        capture.set(cv2.CAP_PROP_FPS,22)
         # Get Video info : resolution, fps, frame count
         width = int(capture.get(cv2.CAP_PROP_FRAME_WIDTH))
         height = int(capture.get(cv2.CAP_PROP_FRAME_HEIGHT))
         fps = int(capture.get(cv2.CAP_PROP_FPS))
         if fps <= 0:
-            fps = 30
+            fps = 22
+        # print("fps==========>"+str(fps)+",w:"+str(width)+",h:"+str(height))
         frame_count = int(capture.get(cv2.CAP_PROP_FRAME_COUNT))
         print("video fps: %d, frame_count: %d" % (fps, frame_count))
 
@@ -849,8 +851,10 @@ class PipePredictor(object):
                     records,
                     ids2names=self.mot_predictor.pred_config.labels,draw_mark=self.args.draw_mark)
                 records = statistic['records']
-                # cv2.imshow("prev",frame_rgb)
+
+                # 更新统计数据
                 _tracking_data_communicate.Set(len(statistic['id_set']),len(statistic['in_id_list']),len(statistic['out_id_list']))
+
                 if self.illegal_parking_time != -1:
                     object_in_region_info, illegal_parking_dict = update_object_info(
                         object_in_region_info, mot_result, self.region_type,
@@ -1368,10 +1372,12 @@ def quit(signum, frame):
     sys.exit()
 
 
+# 上报数据
 def report_heart_beat(task_id,report_url,_thread_quit_signal,_tracking_data_communicate):
+    _tracking_data_report=tracking_data_report(_tracking_data_communicate)
     while not _thread_quit_signal.GetQuit():
-        task_heart_beat(task_id,report_url,_tracking_data_communicate)
-        time.sleep(5)
+        _tracking_data_report.post(task_id,report_url)
+        time.sleep(10)
 
 
 def run_heart_beat(args,_tracking_data_communicate):
