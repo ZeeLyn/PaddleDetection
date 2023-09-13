@@ -1,0 +1,1 @@
+ python deploy/pipeline/pipeline.py --config deploy/pipeline/config/infer_cfg_pphuman.yml --heart_beat=http://localhost:34011/api/v1/task/report --task_id=1 --draw_mark=True  --imshow=True  -o MOT.enable=True --image_file=./demo_input/test.jpg --device=gpu --output_dir=demo_output

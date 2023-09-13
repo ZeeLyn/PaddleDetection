@@ -785,8 +785,8 @@ class PipePredictor(object):
         thread.start()
         time.sleep(1)
         tracking_area = None   # x1,y1,x2,y2
-        if self.args.startX>0 and self.args.startY>0 and self.args.endX>0 and self.args.endY>0 and self.args.endX-self.args.startX>=400 and self.args.endY-self.args.startY>=400:
-            tracking_area=(self.args.startX,self.args.startY,self.args.endX,self.args.endY)
+        if self.args.monitor_startX>0 and self.args.monitor_startY>0 and self.args.monitor_width>0 and self.args.monitor_height>0:
+            tracking_area=(int(self.args.monitor_startX*width),int(self.args.monitor_startY*height),int(self.args.monitor_width*width+self.args.monitor_startX*width),int(self.args.monitor_height*height+self.args.monitor_startY*height))
 
         while not _thread_quit_signal.GetQuit():
         # while (not framequeue.empty()):
@@ -806,7 +806,7 @@ class PipePredictor(object):
                     frame_rgb,
                     (tracking_area[0],tracking_area[1]),
                     (tracking_area[2],tracking_area[3]),
-                    color=(208, 19, 246),
+                    color=(182, 12, 0),
                     thickness=2)
             # print("取出队列")
 
