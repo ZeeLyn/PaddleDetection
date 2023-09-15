@@ -9,17 +9,17 @@ class tracking_data_communicate():
         self.in_count = 0
         self.out_count = 0
 
-    def Set(self, total, in_count, out_count):
+    def Set(self, total):
         self.total = total
-        self.in_count = in_count
-        self.out_count = out_count
+        # self.in_count = in_count
+        # self.out_count = out_count
         # print("total:{},in:{},out:{}".format(total,in_count,out_count))
 
     def Get(self):
         return {
             "total": self.total,
-            "in_count": self.in_count,
-            "out_count": self.out_count
+            # "in_count": self.in_count,
+            # "out_count": self.out_count
         }
 
 

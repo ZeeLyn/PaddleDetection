@@ -205,9 +205,9 @@ def plot_tracking_dict(image,
         entrance = np.array(entrance[:-1])  # last pair is [im_w, im_h] 
 
     text_scale = max(0.5, image.shape[1] / 3000.)
-    text_thickness = 1
+    text_thickness = 2
     line_thickness = max(1, int(image.shape[1] / 500.))
-    line_thickness=1
+    line_thickness=2
     # print("线条粗细："+str(line_thickness))
 
     if num_classes == 1:

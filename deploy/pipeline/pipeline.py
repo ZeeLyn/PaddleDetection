@@ -662,9 +662,10 @@ class PipePredictor(object):
                     ret, frame = capture.read()
                     if not ret:
                         fail_count=fail_count+1
-                        print("读取视频源失败")
+                        print("读取视频源失败:"+str(capture.isOpened()))
                         time.sleep(1)
                         if fail_count<100:
+
                             continue
                         else:
                             _thread_quit_signal.SetQuit()
@@ -677,13 +678,40 @@ class PipePredictor(object):
                 print(traceback.format_exc())
                 break
 
+    def check_leave(self,valid_id_set,in_id_time,id_last_time,_thread_quit_signal,_tracking_data_communicate,min_stay_duration=1):
+        while not _thread_quit_signal.GetQuit():
+            try:
+                now=time.time()
+                # print(in_id_time)
+                # print(id_last_time)
+
+                # 超过指定时间未更新时间的id
+                timeout_ids=[id for id in id_last_time.keys() if now-id_last_time[id]>2]
+
+                # 超过指定时间未更新时间的并且停留时长超过预设值min_stay_duration则判定为离开，短暂停留（小于预设值min_stay_duration）不计算客流
+                leave_ids=[id for id in id_last_time.keys() if now-id_last_time[id]>2 and  id_last_time[id]-in_id_time[id]>min_stay_duration]
+
+                for id in timeout_ids:
+                    del id_last_time[id]
+                    del in_id_time[id]
+                    if id in leave_ids:
+                        print('{}离开'.format(id))
+                        valid_id_set.add(id)
+
+                # 更新上报数据
+                _tracking_data_communicate.Set(len(valid_id_set))
+                time.sleep(0.1)
+            except:
+                print("检测对象离开出现异常")
+                print(traceback.format_exc())
+
 
     def predict_video(self, video_file,_thread_quit_signal,_tracking_data_communicate, thread_idx=0):
         # mot
         # mot -> attr
         # mot -> pose -> action
         # print("video_file:"+str(video_file))
-        capture = cv2.VideoCapture(video_file)
+        capture = cv2.VideoCapture(video_file,cv2.CAP_FFMPEG)
         # capture.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc('M', 'J', 'P', 'G'))
         # while(True):
         #     if capture.isOpened():
@@ -739,7 +767,10 @@ class PipePredictor(object):
             center_traj = [{}]
         id_set = set()
         interval_id_set = set()
+        valid_id_set=set()
         in_id_list = list()
+        in_id_time=dict()
+        id_last_time=dict()
         out_id_list = list()
         prev_center = dict()
         records = list()
@@ -783,6 +814,10 @@ class PipePredictor(object):
         thread = threading.Thread(
             target=self.capturevideo, args=(capture, framequeue,_thread_quit_signal))
         thread.start()
+
+        thread_check=threading.Thread(target=self.check_leave,args=(valid_id_set,in_id_time,id_last_time,_thread_quit_signal,_tracking_data_communicate))
+        thread_check.start()
+
         time.sleep(1)
         tracking_area = None   # x1,y1,x2,y2
         if self.args.monitor_startX>0 and self.args.monitor_startY>0 and self.args.monitor_width>0 and self.args.monitor_height>0:
@@ -840,6 +875,9 @@ class PipePredictor(object):
 
                 # flow_statistic only support single class MOT
                 boxes, scores, ids = res[0]  # batch size = 1 in MOT
+
+
+                # ids[0]是当期在画面的人物id数组
                 mot_result = (frame_id + 1, boxes[0], scores[0],
                               ids[0])  # single class
                 statistic = flow_statistic(
@@ -856,11 +894,11 @@ class PipePredictor(object):
                     out_id_list,
                     prev_center,
                     records,
-                    ids2names=self.mot_predictor.pred_config.labels,draw_mark=self.args.draw_mark)
+                    ids2names=self.mot_predictor.pred_config.labels,draw_mark=self.args.draw_mark,in_id_time=in_id_time,id_last_time=id_last_time)
                 records = statistic['records']
 
                 # 更新统计数据
-                _tracking_data_communicate.Set(len(statistic['id_set']),len(statistic['in_id_list']),len(statistic['out_id_list']))
+                # _tracking_data_communicate.Set(len(statistic['id_set']),len(statistic['in_id_list']),len(statistic['out_id_list']))
 
                 if self.illegal_parking_time != -1:
                     object_in_region_info, illegal_parking_dict = update_object_info(

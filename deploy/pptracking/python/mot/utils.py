@@ -224,7 +224,7 @@ def flow_statistic(result,
                    prev_center,
                    records,
                    data_type='mot',
-                   ids2names=['pedestrian'],draw_mark=True):
+                   ids2names=['pedestrian'],draw_mark=True,in_id_time=None,id_last_time=None):
     # Count in/out number: 
     # Note that 'region_type' should be one of ['horizontal', 'vertical', 'custom'],
     # 'horizontal' and 'vertical' means entrance is the center line as the entrance when do_entrance_counting, 
@@ -308,7 +308,13 @@ def flow_statistic(result,
     frame_id, tlwhs, tscores, track_ids = result
     for tlwh, score, track_id in zip(tlwhs, tscores, track_ids):
         if track_id < 0: continue
-        id_set.add(track_id)
+        now = time.time()
+        if track_id not in id_set:
+            id_set.add(track_id)
+            in_id_time[track_id]=now
+            id_last_time[track_id]=now
+        else:
+            id_last_time[track_id] = now
         interval_id_set.add(track_id)
 
     # Reset counting at the interval beginning

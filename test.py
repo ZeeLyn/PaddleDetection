@@ -1,8 +1,4 @@
-id=0
-id_set=set()
-
-while True:
-    id=id+1
-    id_set.add(id)
-    if id%100==0:
-        print(len(id_set))
+dict= dict()
+dict[1]=1
+dict[2]=3
+print(3 in dict)
