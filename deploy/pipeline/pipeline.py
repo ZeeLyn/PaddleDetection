@@ -689,13 +689,14 @@ class PipePredictor(object):
                 timeout_ids=[id for id in id_last_time.keys() if now-id_last_time[id]>2]
 
                 # 超过指定时间未更新时间的并且停留时长超过预设值min_stay_duration则判定为离开，短暂停留（小于预设值min_stay_duration）不计算客流
-                leave_ids=[id for id in id_last_time.keys() if now-id_last_time[id]>2 and  id_last_time[id]-in_id_time[id]>min_stay_duration]
+                leave_ids=[id for id in id_last_time.keys() if id in in_id_time and now-id_last_time[id]>2 and id_last_time[id]-in_id_time[id]>min_stay_duration]
 
                 for id in timeout_ids:
                     del id_last_time[id]
-                    del in_id_time[id]
+                    if id in in_id_time:
+                        del in_id_time[id]
                     if id in leave_ids:
-                        print('{}离开'.format(id))
+                        # print('{}离开'.format(id))
                         valid_id_set.add(id)
 
                 # 更新上报数据
@@ -815,7 +816,7 @@ class PipePredictor(object):
             target=self.capturevideo, args=(capture, framequeue,_thread_quit_signal))
         thread.start()
 
-        thread_check=threading.Thread(target=self.check_leave,args=(valid_id_set,in_id_time,id_last_time,_thread_quit_signal,_tracking_data_communicate))
+        thread_check=threading.Thread(target=self.check_leave,args=(valid_id_set,in_id_time,id_last_time,_thread_quit_signal,_tracking_data_communicate,self.args.min_stay_duration))
         thread_check.start()
 
         time.sleep(1)

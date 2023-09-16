@@ -210,16 +210,16 @@ def plot_tracking_dict(image,
     line_thickness=2
     # print("线条粗细："+str(line_thickness))
 
-    if num_classes == 1:
-        if records is not None and draw_mark:
-            start = records[-1].find('Total')
-            end = records[-1].find('In')
-            cv2.putText(
-                im,
-                records[-1][start:end], (0, int(40 * text_scale) + 10),
-                cv2.FONT_ITALIC,
-                text_scale, (0, 0, 255),
-                thickness=text_thickness)
+    # if num_classes == 1:
+    #     if records is not None and draw_mark:
+    #         start = records[-1].find('Total')
+    #         end = records[-1].find('In')
+    #         cv2.putText(
+    #             im,
+    #             records[-1][start:end], (0, int(40 * text_scale) + 10),
+    #             cv2.FONT_ITALIC,
+    #             text_scale, (0, 0, 255),
+    #             thickness=text_thickness)
 
     if num_classes == 1 and do_entrance_counting:
         entrance_line = tuple(map(int, entrance))

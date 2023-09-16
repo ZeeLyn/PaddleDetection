@@ -29,11 +29,13 @@ class tracking_data_report():
         self.tracking_data_communicate = _tracking_data_communicate
 
     def post(self, task_id, report_url):
-        if len(report_url) == 0:
+        data = self.tracking_data_communicate.Get()
+        print("累计{}人次".format(str(data['total'])))
+        # print(end=f'\r{str(data["total"])}')
+        if report_url is None or len(report_url) == 0:
             return
 
         try:
-            data = self.tracking_data_communicate.Get()
             increase_count = data['total'] - self.last_report_count
             if increase_count >= 0:
                 resp = requests.post(report_url, headers={"Content-Type": "application/json"},

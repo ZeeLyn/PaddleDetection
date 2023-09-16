@@ -68,6 +68,8 @@ def argsparser():
     parser.add_argument("--monitor_startY", type=float, default=0, help="检测区域开始坐标Y值的比例值")
     parser.add_argument("--monitor_width", type=float, default=0, help="检测区域宽度比例")
     parser.add_argument("--monitor_height", type=float, default=0, help="检测区域高度比例")
+    parser.add_argument("--min_stay_duration", type=int, default=0, help="最小停留时间")
+
 
     parser.add_argument(
         "--image_file", type=str, default=None, help="Path of image file.")
