@@ -19,6 +19,7 @@ import queue
 import sys
 import threading
 import time
+import datetime
 from collections import defaultdict
 import signal
 
@@ -71,7 +72,7 @@ from ppvehicle.vehicle_retrograde import VehicleRetrogradeRecognizer
 from ppvehicle.lane_seg_infer import LaneSegPredictor
 
 from download import auto_download_model
-
+import logging
 
 thread_quit_signal = thread_quit_signal()
 
@@ -86,6 +87,7 @@ class Pipeline(object):
 
     def __init__(self, args, cfg,tracking_data_communicate):
         self.args=args
+
         self.tracking_data_communicate = tracking_data_communicate
         self.multi_camera = False
         reid_cfg = cfg.get('REID', False)
@@ -274,7 +276,7 @@ class PipePredictor(object):
 
     def __init__(self, args, cfg, is_video=True, multi_camera=False):
         # general module for pphuman and ppvehicle
-
+        self.logger = logging.getLogger('mylogger')
         self.args=args
         self.with_mot = cfg.get('MOT', False)['enable'] if cfg.get(
             'MOT', False) else False
@@ -682,7 +684,7 @@ class PipePredictor(object):
     def capturevideo(self, capture, queue,_thread_quit_signal,video_file):
         frame_id = 0
         fail_count=0
-        max_reconnect_times=20
+        max_reconnect_times=10
         reconnect_times=0
         while not _thread_quit_signal.GetQuit():
             try:
@@ -728,6 +730,7 @@ class PipePredictor(object):
 
     # 打开摄像头或网络视频流
     def open_video_capture(self,video_file):
+        self.logger.error('开始捕获视频')
         capture = cv2.VideoCapture(video_file, cv2.CAP_FFMPEG)
         # 设置分辨率
         # capture.set(3, 640)
@@ -1469,6 +1472,9 @@ def run_heart_beat(args,_tracking_data_communicate):
 
 def main():
     cfg = merge_cfg(FLAGS)  # use command params to update config
+
+    init_logging(FLAGS.task_id)
+
     print_arguments(cfg)
     _tracking_data_communicate= tracking_data_communicate()
     run_heart_beat(FLAGS, _tracking_data_communicate)
@@ -1477,7 +1483,33 @@ def main():
     pipeline.run_multithreads()
 
 
+def init_logging(task_id,log_level = logging.WARNING):
+    logger = logging.getLogger('mylogger')
+    logger.setLevel(log_level)
+    if not os.path.exists('logs/%s' % task_id):
+        os.makedirs('logs/%s' % task_id)
+    log_file = 'logs/%s/%s.log' % (task_id,datetime.datetime.strftime(datetime.datetime.now(), '%Y-%m-%d'))
+    # level：设置日志输出的最低级别，即低于此级别的日志都不会输出
+    # 在平时开发测试的时候能够设置成logging.debug以便定位问题，但正式上线后建议设置为logging.WARNING，既能够下降系统I/O的负荷，也能够避免输出过多的无用日志信息
+
+    # format：设置日志的字符串输出格式
+    log_format = '[%(levelname)s][%(asctime)s]%(filename)s=>[%(lineno)d行]:\n%(message)s\n\n'
+    formatter = logging.Formatter(log_format)
+
+    fh = logging.FileHandler(log_file)
+    fh.setLevel(log_level)
+    fh.setFormatter(formatter)
+
+    ch = logging.StreamHandler()
+    ch.setLevel(log_level)
+
+    logger.addHandler(fh)
+    logger.addHandler(ch)
+    # logging.basicConfig(filename=log_file, level=log_level, format=log_format)
+
+
 if __name__ == '__main__':
+
     paddle.enable_static()
     signal.signal(signal.SIGINT, quit)
     signal.signal(signal.SIGTERM, quit)
@@ -1487,5 +1519,6 @@ if __name__ == '__main__':
     FLAGS.device = FLAGS.device.upper()
     assert FLAGS.device in ['CPU', 'GPU', 'XPU', 'NPU'
                             ], "device should be CPU, GPU, XPU or NPU"
+
 
     main()
