@@ -650,34 +650,7 @@ class PipePredictor(object):
             if self.cfg['visual']:
                 self.visualize_image(batch_file, batch_input, self.pipeline_res)
 
-    def capturevideo(self, capture, queue,_thread_quit_signal):
-        frame_id = 0
-        fail_count=0
-        while not _thread_quit_signal.GetQuit():
-            try:
-                if queue.full():
-                    # print("队列已满")
-                    time.sleep(0.1)
-                else:
-                    ret, frame = capture.read()
-                    if not ret:
-                        fail_count=fail_count+1
-                        print("读取视频源失败:"+str(capture.isOpened()))
-                        time.sleep(1)
-                        if fail_count<100:
-
-                            continue
-                        else:
-                            _thread_quit_signal.SetQuit()
-                            break
-                    fail_count=0
-                    frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-                    queue.put(frame_rgb)
-            except:
-                print("读取视频源出现异常--------------------------->")
-                print(traceback.format_exc())
-                break
-
+    # 检查检测对象是否离开检测范围
     def check_leave(self,valid_id_set,in_id_time,id_last_time,_thread_quit_signal,_tracking_data_communicate,min_stay_duration=1):
         while not _thread_quit_signal.GetQuit():
             try:
@@ -706,13 +679,76 @@ class PipePredictor(object):
                 print("检测对象离开出现异常")
                 print(traceback.format_exc())
 
+    def capturevideo(self, capture, queue,_thread_quit_signal,video_file):
+        frame_id = 0
+        fail_count=0
+        max_reconnect_times=20
+        reconnect_times=0
+        while not _thread_quit_signal.GetQuit():
+            try:
+                if queue.full():
+                    # print("队列已满")
+                    time.sleep(0.1)
+                else:
+                    ret, frame = capture.read()
+                    if not ret:
+                        print("读取视频源失败")
+                        # 如果读取视频流失败，重试30次后还是无法成功就重新建立连接
+                        fail_count=fail_count+1
+
+                        time.sleep(1)
+                        if fail_count<30:
+                            continue
+                        else:
+                            # 如果超出重新建立连接次数发出quit信号
+                            if reconnect_times>=max_reconnect_times:
+                                _thread_quit_signal.SetQuit()
+                                break
+                            reconnect_times = reconnect_times + 1
+
+                            print("第{}次重新建立视频链接".format(str(reconnect_times)))
+                            capture.release()
+                            cap,width,height,fps= self.open_video_capture(video_file)
+                            fail_count=0
+                            capture=cap
+
+                            # _thread_quit_signal.SetQuit()
+                            # break
+                            continue
+
+                    reconnect_times=0
+                    fail_count=0
+                    frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                    queue.put(frame_rgb)
+            except:
+                print("读取视频源出现异常--------------------------->")
+                print(traceback.format_exc())
+                break
+
+
+    # 打开摄像头或网络视频流
+    def open_video_capture(self,video_file):
+        capture = cv2.VideoCapture(video_file, cv2.CAP_FFMPEG)
+        # 设置分辨率
+        # capture.set(3, 640)
+        capture.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
+        # # capture.set(4, 360)
+        capture.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
+        capture.set(cv2.CAP_PROP_FPS, 22)
+
+        width = int(capture.get(cv2.CAP_PROP_FRAME_WIDTH))
+        height = int(capture.get(cv2.CAP_PROP_FRAME_HEIGHT))
+        fps = int(capture.get(cv2.CAP_PROP_FPS))
+
+        return (capture,width,height,fps)
 
     def predict_video(self, video_file,_thread_quit_signal,_tracking_data_communicate, thread_idx=0):
         # mot
         # mot -> attr
         # mot -> pose -> action
         # print("video_file:"+str(video_file))
-        capture = cv2.VideoCapture(video_file,cv2.CAP_FFMPEG)
+        # capture = cv2.VideoCapture(video_file,cv2.CAP_FFMPEG)
+        capture,width,height,fps= self.open_video_capture(video_file)
         # capture.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc('M', 'J', 'P', 'G'))
         # while(True):
         #     if capture.isOpened():
@@ -727,17 +763,16 @@ class PipePredictor(object):
         #         time.sleep(0.1)
 
         # 设置分辨率
-        # capture.set(3, 640)
-        capture.set(cv2.CAP_PROP_FRAME_WIDTH,1280)
-        # # capture.set(4, 360)
-        capture.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
-        capture.set(cv2.CAP_PROP_FPS,22)
-        # Get Video info : resolution, fps, frame count
-        width = int(capture.get(cv2.CAP_PROP_FRAME_WIDTH))
-        height = int(capture.get(cv2.CAP_PROP_FRAME_HEIGHT))
-        fps = int(capture.get(cv2.CAP_PROP_FPS))
+
+        # capture.set(cv2.CAP_PROP_FRAME_WIDTH,1280)
+        # capture.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
+        # capture.set(cv2.CAP_PROP_FPS,15)
+        #
+        # width = int(capture.get(cv2.CAP_PROP_FRAME_WIDTH))
+        # height = int(capture.get(cv2.CAP_PROP_FRAME_HEIGHT))
+        # fps = int(capture.get(cv2.CAP_PROP_FPS))
         if fps <= 0:
-            fps = 22
+            fps = 15
         # print("fps==========>"+str(fps)+",w:"+str(width)+",h:"+str(height))
         frame_count = int(capture.get(cv2.CAP_PROP_FRAME_COUNT))
         print("video fps: %d, frame_count: %d" % (fps, frame_count))
@@ -813,7 +848,7 @@ class PipePredictor(object):
         framequeue = queue.Queue(10)
 
         thread = threading.Thread(
-            target=self.capturevideo, args=(capture, framequeue,_thread_quit_signal))
+            target=self.capturevideo, args=(capture, framequeue,_thread_quit_signal,video_file))
         thread.start()
 
         thread_check=threading.Thread(target=self.check_leave,args=(valid_id_set,in_id_time,id_last_time,_thread_quit_signal,_tracking_data_communicate,self.args.min_stay_duration))
@@ -835,7 +870,7 @@ class PipePredictor(object):
             #     print('Thread: {}; frame id: {}'.format(thread_idx, frame_id))
 
             frame_rgb = framequeue.get()
-            # TODO 此处进行图片区域裁切
+
 
             if self.args.draw_mark and tracking_area is not None:
                 cv2.rectangle(
