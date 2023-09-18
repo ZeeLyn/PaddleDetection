@@ -1,5 +1,4 @@
-import traceback
-
+import logging
 import requests
 
 
@@ -27,15 +26,14 @@ class tracking_data_report():
     def __init__(self, _tracking_data_communicate):
         self.last_report_count = 0
         self.tracking_data_communicate = _tracking_data_communicate
+        self.logger= logging.getLogger("mylogger")
 
     def post(self, task_id, report_url):
-        data = self.tracking_data_communicate.Get()
-        print("累计{}人次".format(str(data['total'])))
-        # print(end=f'\r{str(data["total"])}')
         if report_url is None or len(report_url) == 0:
             return
-
         try:
+            data = self.tracking_data_communicate.Get()
+            self.logger.info("累计%s人次", str(data['total']))
             increase_count = data['total'] - self.last_report_count
             if increase_count >= 0:
                 resp = requests.post(report_url, headers={"Content-Type": "application/json"},
@@ -45,5 +43,4 @@ class tracking_data_report():
                 else:
                     print(resp.text)
         except:
-            print("上报失败")
-            print(traceback.format_exc())
+            self.logger.error("上报数据失败",exc_info=True)

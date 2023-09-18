@@ -678,8 +678,7 @@ class PipePredictor(object):
                 _tracking_data_communicate.Set(len(valid_id_set))
                 time.sleep(0.1)
             except:
-                print("检测对象离开出现异常")
-                print(traceback.format_exc())
+                self.logger.error("检测跟踪对象是否离开出现异常",exc_info=True)
 
     def capturevideo(self, capture, queue,_thread_quit_signal,video_file):
         frame_id = 0
@@ -689,55 +688,48 @@ class PipePredictor(object):
         while not _thread_quit_signal.GetQuit():
             try:
                 if queue.full():
-                    # print("队列已满")
+                    self.logger.info("队列已满")
                     time.sleep(0.1)
                 else:
                     ret, frame = capture.read()
                     if not ret:
-                        print("读取视频源失败")
+                        self.logger.info("读取视频源失败")
                         # 如果读取视频流失败，重试30次后还是无法成功就重新建立连接
                         fail_count=fail_count+1
-
                         time.sleep(1)
                         if fail_count<30:
                             continue
                         else:
+
                             # 如果超出重新建立连接次数发出quit信号
                             if reconnect_times>=max_reconnect_times:
+                                self.logger.error("经多次尝试连接视频流都失败了，程序退出!")
                                 _thread_quit_signal.SetQuit()
                                 break
                             reconnect_times = reconnect_times + 1
-
-                            print("第{}次重新建立视频链接".format(str(reconnect_times)))
+                            self.logger.warning("第%s次尝试重新建立视频流连接",str(reconnect_times))
                             capture.release()
                             cap,width,height,fps= self.open_video_capture(video_file)
                             fail_count=0
                             capture=cap
-
-                            # _thread_quit_signal.SetQuit()
-                            # break
                             continue
 
+                    fail_count = 0
                     reconnect_times=0
-                    fail_count=0
                     frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
                     queue.put(frame_rgb)
             except:
-                print("读取视频源出现异常--------------------------->")
-                print(traceback.format_exc())
+                self.logger.error("读取视频源出现异常", exc_info=True)
                 break
 
 
     # 打开摄像头或网络视频流
     def open_video_capture(self,video_file):
-        self.logger.error('开始捕获视频')
         capture = cv2.VideoCapture(video_file, cv2.CAP_FFMPEG)
         # 设置分辨率
-        # capture.set(3, 640)
         capture.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
-        # # capture.set(4, 360)
         capture.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
-        capture.set(cv2.CAP_PROP_FPS, 22)
+        capture.set(cv2.CAP_PROP_FPS, 15)
 
         width = int(capture.get(cv2.CAP_PROP_FRAME_WIDTH))
         height = int(capture.get(cv2.CAP_PROP_FRAME_HEIGHT))
@@ -778,7 +770,8 @@ class PipePredictor(object):
             fps = 15
         # print("fps==========>"+str(fps)+",w:"+str(width)+",h:"+str(height))
         frame_count = int(capture.get(cv2.CAP_PROP_FRAME_COUNT))
-        print("video fps: %d, frame_count: %d" % (fps, frame_count))
+
+        self.logger.info("video fps: %d, frame_count: %d" % (fps, frame_count))
 
         if len(self.pushurl) > 0:
             video_out_name = 'output' if self.file_name is None else self.file_name
@@ -863,18 +856,14 @@ class PipePredictor(object):
             tracking_area=(int(self.args.monitor_startX*width),int(self.args.monitor_startY*height),int(self.args.monitor_width*width+self.args.monitor_startX*width),int(self.args.monitor_height*height+self.args.monitor_startY*height))
 
         while not _thread_quit_signal.GetQuit():
-        # while (not framequeue.empty()):
-        #     print("Get--------------->")
             if framequeue.empty():
-                print("队列没有内容")
+                self.logger.info("队列没有内容")
                 time.sleep(0.3)
                 continue
             # if frame_id % 10 == 0:
             #     print('Thread: {}; frame id: {}'.format(thread_idx, frame_id))
 
             frame_rgb = framequeue.get()
-
-
             if self.args.draw_mark and tracking_area is not None:
                 cv2.rectangle(
                     frame_rgb,
@@ -882,7 +871,6 @@ class PipePredictor(object):
                     (tracking_area[2],tracking_area[3]),
                     color=(182, 12, 0),
                     thickness=2)
-            # print("取出队列")
 
 
             if frame_id > self.warmup_frame:
@@ -1473,7 +1461,7 @@ def run_heart_beat(args,_tracking_data_communicate):
 def main():
     cfg = merge_cfg(FLAGS)  # use command params to update config
 
-    init_logging(FLAGS.task_id)
+    init_logging(FLAGS.task_id,FLAGS.log_folder,logging.getLevelName(FLAGS.log_level))
 
     print_arguments(cfg)
     _tracking_data_communicate= tracking_data_communicate()
@@ -1483,14 +1471,13 @@ def main():
     pipeline.run_multithreads()
 
 
-def init_logging(task_id,log_level = logging.WARNING):
+def init_logging(task_id,folder='logs/',log_level = logging.WARNING):
+    log_dir=os.path.join(folder,task_id)
     logger = logging.getLogger('mylogger')
     logger.setLevel(log_level)
-    if not os.path.exists('logs/%s' % task_id):
-        os.makedirs('logs/%s' % task_id)
-    log_file = 'logs/%s/%s.log' % (task_id,datetime.datetime.strftime(datetime.datetime.now(), '%Y-%m-%d'))
-    # level：设置日志输出的最低级别，即低于此级别的日志都不会输出
-    # 在平时开发测试的时候能够设置成logging.debug以便定位问题，但正式上线后建议设置为logging.WARNING，既能够下降系统I/O的负荷，也能够避免输出过多的无用日志信息
+    if not os.path.exists(log_dir):
+        os.makedirs(log_dir)
+    log_file = os.path.join(log_dir,'%s.log' % datetime.datetime.strftime(datetime.datetime.now(), '%Y-%m-%d'))
 
     # format：设置日志的字符串输出格式
     log_format = '[%(levelname)s][%(asctime)s]%(filename)s=>[%(lineno)d行]:\n%(message)s\n\n'
@@ -1505,11 +1492,10 @@ def init_logging(task_id,log_level = logging.WARNING):
 
     logger.addHandler(fh)
     logger.addHandler(ch)
-    # logging.basicConfig(filename=log_file, level=log_level, format=log_format)
+
 
 
 if __name__ == '__main__':
-
     paddle.enable_static()
     signal.signal(signal.SIGINT, quit)
     signal.signal(signal.SIGTERM, quit)
@@ -1519,6 +1505,4 @@ if __name__ == '__main__':
     FLAGS.device = FLAGS.device.upper()
     assert FLAGS.device in ['CPU', 'GPU', 'XPU', 'NPU'
                             ], "device should be CPU, GPU, XPU or NPU"
-
-
     main()
