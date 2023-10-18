@@ -664,18 +664,22 @@ class PipePredictor(object):
                 timeout_ids=[id for id in id_last_time.keys() if now-id_last_time[id]>2]
 
                 # 超过指定时间未更新时间的并且停留时长超过预设值min_stay_duration则判定为离开，短暂停留（小于预设值min_stay_duration）不计算客流
-                leave_ids=[id for id in id_last_time.keys() if id in in_id_time and now-id_last_time[id]>2 and id_last_time[id]-in_id_time[id]>min_stay_duration]
+                leave_ids=[id for id in id_last_time.keys() if id in in_id_time and now-id_last_time[id]>2 and id_last_time[id]-in_id_time[id]>=min_stay_duration]
 
+                sum_stay_duration=0
                 for id in timeout_ids:
+                    if id in leave_ids:
+                        if id in in_id_time and id in id_last_time:
+                            duration=(int)(id_last_time[id]-in_id_time[id])
+                            sum_stay_duration=sum_stay_duration+duration
+                        # print('{}离开,停留{}'.format(id, duration))
+                        valid_id_set.add(id)
                     del id_last_time[id]
                     if id in in_id_time:
                         del in_id_time[id]
-                    if id in leave_ids:
-                        # print('{}离开'.format(id))
-                        valid_id_set.add(id)
-
+                # print('------------>本次总计停留{}'.format(sum_stay_duration))
                 # 更新上报数据
-                _tracking_data_communicate.Set(len(valid_id_set))
+                _tracking_data_communicate.Set(len(valid_id_set),sum_stay_duration)
                 time.sleep(0.1)
             except:
                 self.logger.error("检测跟踪对象是否离开出现异常",exc_info=True)
