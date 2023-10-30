@@ -48,6 +48,7 @@ class tracking_data_report():
                     self.last_report_count = data['total']
                     self.last_report_duration = data['duration']
                 else:
-                    print(resp.text)
+                    self.logger.error("上报数据失败：status code:{},返回数据：{}",resp.status_code,resp.text)
+                    # print(resp.text)
         except:
             self.logger.error("上报数据失败",exc_info=True)
