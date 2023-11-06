@@ -790,11 +790,12 @@ class PipePredictor(object):
             if type(video_file) == str and "rtsp" in video_file:
                 video_out_name = video_out_name + "_t" + str(thread_idx).zfill(
                     2) + "_rtsp"
-            if not os.path.exists(self.output_dir):
-                os.makedirs(self.output_dir)
-            out_path = os.path.join(self.output_dir, video_out_name + ".mp4")
-            fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-            writer = cv2.VideoWriter(out_path, fourcc, fps, (width, height))
+            if self.output_dir is not None and len(self.output_dir)>0:
+                if not os.path.exists(self.output_dir):
+                    os.makedirs(self.output_dir)
+                out_path = os.path.join(self.output_dir, video_out_name + ".mp4")
+                fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+                writer = cv2.VideoWriter(out_path, fourcc, fps, (width, height))
 
         frame_id = 0
 
@@ -955,11 +956,12 @@ class PipePredictor(object):
                         if len(self.pushurl) > 0:
                             pushstream.pipe.stdin.write(im.tobytes())
                         else:
-                            writer.write(im)
-                            if self.file_name is None:  # use camera_id
-                                cv2.imshow('Paddle-Pipeline', im)
-                                if cv2.waitKey(1) & 0xFF == ord('q'):
-                                    break
+                            if writer is not None and self.output_dir is not None and len(self.output_dir) > 0 :
+                                writer.write(im)
+                                if self.file_name is None:  # use camera_id
+                                    cv2.imshow('Paddle-Pipeline', im)
+                                    if cv2.waitKey(1) & 0xFF == ord('q'):
+                                        break
                     continue
 
                 self.pipeline_res.update(mot_res, 'mot')
@@ -1227,15 +1229,17 @@ class PipePredictor(object):
                 if len(self.pushurl) > 0:
                     pushstream.pipe.stdin.write(im.tobytes())
                 else:
-                    writer.write(im)
+                    if self.output_dir is not None and len(self.output_dir) > 0:
+                        writer.write(im)
                     if self.file_name is None or self.args.imshow:  # use camera_id
                         cv2.imshow('Paddle-Pipeline', im)
                         if cv2.waitKey(1) & 0xFF == ord('q'):
                             break
 
         if self.cfg['visual'] and len(self.pushurl) == 0:
-            writer.release()
-            print('save result to {}'.format(out_path))
+            if self.output_dir is not None and len(self.output_dir) > 0:
+                writer.release()
+                print('save result to {}'.format(out_path))
 
     def visualize_video(self,
                         image_rgb,

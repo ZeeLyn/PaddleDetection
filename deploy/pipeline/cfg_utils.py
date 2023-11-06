@@ -105,7 +105,7 @@ def argsparser():
     parser.add_argument(
         "--output_dir",
         type=str,
-        default="output",
+        default="",
         help="Directory of output visualization files.")
     parser.add_argument(
         "--pushurl",
