@@ -958,10 +958,10 @@ class PipePredictor(object):
                         else:
                             if writer is not None and self.output_dir is not None and len(self.output_dir) > 0 :
                                 writer.write(im)
-                                if self.file_name is None:  # use camera_id
-                                    cv2.imshow('Paddle-Pipeline', im)
-                                    if cv2.waitKey(1) & 0xFF == ord('q'):
-                                        break
+                            if self.file_name is None:  # use camera_id
+                                cv2.imshow('Paddle-Pipeline', im)
+                                if cv2.waitKey(1) & 0xFF == ord('q'):
+                                    break
                     continue
 
                 self.pipeline_res.update(mot_res, 'mot')
