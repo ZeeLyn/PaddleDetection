@@ -69,6 +69,7 @@ def argsparser():
     parser.add_argument("--monitor_width", type=float, default=0, help="检测区域宽度比例")
     parser.add_argument("--monitor_height", type=float, default=0, help="检测区域高度比例")
     parser.add_argument("--min_stay_duration", type=int, default=0, help="最小停留时间")
+    parser.add_argument("--hot_map_duration",type=int,default=40,help="热力图上报间隔")
 
     parser.add_argument("--log_folder", type=str, default="logs/", help="日志写入目录")
     parser.add_argument("--log_level", type=str, default="WARNING", help="日志级别")

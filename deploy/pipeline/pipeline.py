@@ -742,6 +742,7 @@ class PipePredictor(object):
         return (capture,width,height,fps)
 
     def predict_video(self, video_file,_thread_quit_signal,_tracking_data_communicate, thread_idx=0):
+        writer=None
         # mot
         # mot -> attr
         # mot -> pose -> action
@@ -859,7 +860,10 @@ class PipePredictor(object):
         tracking_area = None   # x1,y1,x2,y2
         if self.args.monitor_startX>0 and self.args.monitor_startY>0 and self.args.monitor_width>0 and self.args.monitor_height>0:
             tracking_area=(int(self.args.monitor_startX*width),int(self.args.monitor_startY*height),int(self.args.monitor_width*width+self.args.monitor_startX*width),int(self.args.monitor_height*height+self.args.monitor_startY*height))
-
+        
+        # 累计处理的帧数
+        # frame_counter=0
+        current_timestamp = int(time.time())
         while not _thread_quit_signal.GetQuit():
             if framequeue.empty():
                 self.logger.info("队列没有内容")
@@ -867,7 +871,7 @@ class PipePredictor(object):
                 continue
             # if frame_id % 10 == 0:
             #     print('Thread: {}; frame id: {}'.format(thread_idx, frame_id))
-
+            # frame_counter+=1
             frame_rgb = framequeue.get()
             if self.args.draw_mark and tracking_area is not None:
                 cv2.rectangle(
@@ -897,6 +901,7 @@ class PipePredictor(object):
 
                 # mot output format: id, class, score, xmin, ymin, xmax, ymax
                 mot_res = parse_mot_res(res)
+                # print("mot_res:",mot_res)
                 if frame_id > self.warmup_frame:
                     self.pipe_timer.module_time['mot'].end()
                     self.pipe_timer.track_num += len(mot_res['boxes'])
@@ -908,7 +913,7 @@ class PipePredictor(object):
                 # flow_statistic only support single class MOT
                 boxes, scores, ids = res[0]  # batch size = 1 in MOT
 
-
+                # print("boxes:",boxes,scores,ids)
                 # ids[0]是当期在画面的人物id数组
                 mot_result = (frame_id + 1, boxes[0], scores[0],
                               ids[0])  # single class
@@ -928,6 +933,7 @@ class PipePredictor(object):
                     records,
                     ids2names=self.mot_predictor.pred_config.labels,draw_mark=self.args.draw_mark,in_id_time=in_id_time,id_last_time=id_last_time)
                 records = statistic['records']
+            
 
                 # 更新统计数据
                 # _tracking_data_communicate.Set(len(statistic['id_set']),len(statistic['in_id_list']),len(statistic['out_id_list']))
@@ -956,6 +962,7 @@ class PipePredictor(object):
                         if len(self.pushurl) > 0:
                             pushstream.pipe.stdin.write(im.tobytes())
                         else:
+                            # print("writer:",writer)
                             if writer is not None and self.output_dir is not None and len(self.output_dir) > 0 :
                                 writer.write(im)
                             if self.file_name is None:  # use camera_id
@@ -963,7 +970,46 @@ class PipePredictor(object):
                                 if cv2.waitKey(1) & 0xFF == ord('q'):
                                     break
                     continue
-
+                # 定时获取热力图数据
+                # if frame_counter%2000==0:
+                # print(int(time.time())-current_timestamp)
+                # print(self.args.hot_map_duration)
+                if self.args.hot_map_duration>0 and int(time.time())-current_timestamp>=self.args.hot_map_duration:
+                    try:
+                        _mot_res = copy.deepcopy(mot_res)
+                        if _mot_res is not None:
+                            _boxes = _mot_res['boxes'][:, 3:]
+                            _boxes[:, 2] = _boxes[:, 2] - _boxes[:, 0]
+                            _boxes[:, 3] = _boxes[:, 3] - _boxes[:, 1]
+                            _online_tlwhs = defaultdict(list)
+                            _online_tlwhs[0] = _boxes
+                            _center_pointers=[]
+                            for i, tlwh in enumerate(_online_tlwhs[0]):
+                                x1, y1, w, h = tlwh
+                                
+                                # center = tuple(map(int, (x1 + w / 2., y1 + h / 2.)))
+                                _center_pointers.append([int(x1 + w / 2), int(y1 + h / 2)])
+                                
+                                # intbox = tuple(map(int, (x1, y1, x1 + w, y1 + h)))
+                                # box_pt1= intbox[0:2]
+                                # box_pt2=  intbox[2:4]
+                                # cv2.rectangle(
+                                #         frame_rgb,
+                                #         box_pt1,
+                                #         box_pt2,
+                                #         color=(0, 0, 255),
+                                #         thickness=2)
+                            
+                            _tracking_data_communicate.SetHotPoints(_center_pointers)
+                            cv2.imwrite(f'task_cap_{self.args.task_id}.jpg',frame_rgb)
+                            # cv2.imshow('1',frame_rgb)
+                            # cv2.waitKey(0)
+                    except Exception as e:
+                        print("获取热力坐标数据异常:")
+                        traceback.print_exc()
+                    # frame_counter=0
+                    current_timestamp = int(time.time())
+                
                 self.pipeline_res.update(mot_res, 'mot')
                 crop_input, new_bboxes, ori_bboxes = crop_image_with_mot(
                     frame_rgb, mot_res)
@@ -1274,6 +1320,24 @@ class PipePredictor(object):
         online_tlwhs[0] = boxes
         online_scores[0] = scores
         online_ids[0] = ids
+        # print("online_tlwhs",online_tlwhs[0])
+
+        # for i, tlwh in enumerate(online_tlwhs[0]):
+        #     x1, y1, w, h = tlwh
+        #     intbox = tuple(map(int, (x1, y1, x1 + w, y1 + h)))
+        #     box_pt1= intbox[0:2]
+        #     box_pt2=  intbox[2:4]
+        #     cv2.rectangle(
+        #             image,
+        #             box_pt1,
+        #             box_pt2,
+        #             color=(0, 0, 255),
+        #             thickness=1)
+        #     # points.append((x1, y1, w, h))
+        # cv2.imwrite('output.jpg',image)
+        # cv2.imshow("Pre",image)
+        # cv2.waitKey()
+            
 
         if mot_res is not None:
             image = plot_tracking_dict(

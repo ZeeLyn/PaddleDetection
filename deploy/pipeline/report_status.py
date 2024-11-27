@@ -8,6 +8,7 @@ class tracking_data_communicate():
         self.in_count = 0
         self.out_count = 0
         self.duration=0
+        self.hot_points=[]
 
     def Set(self, total, duration):
         self.total = total
@@ -15,11 +16,17 @@ class tracking_data_communicate():
         # self.in_count = in_count
         # self.out_count = out_count
         # print("total:{},in:{},out:{}".format(total,in_count,out_count))
-
+    def SetHotPoints(self,points):
+        self.hot_points.extend(points)
+        
+    def ResetHotPoints(self):
+        self.hot_points=[]
+        
     def Get(self):
         return {
             "total": self.total,
-            "duration": self.duration
+            "duration": self.duration,
+            "hot_points":self.hot_points
             # "in_count": self.in_count,
             # "out_count": self.out_count
         }
@@ -42,11 +49,12 @@ class tracking_data_report():
             duration = data['duration'] - self.last_report_duration
             if increase_count >= 0:
                 resp = requests.post(report_url, headers={"Content-Type": "application/json"},
-                                     json={"taskId": task_id, "count": increase_count,'duration':duration}, timeout=3)
+                                     json={"taskId": task_id, "count": increase_count,'duration':duration,"hotPoints":data['hot_points']}, timeout=3)
                 if resp.status_code == 200:
                     # print('==============》累计留时间{}'.format(data['duration']))
                     self.last_report_count = data['total']
                     self.last_report_duration = data['duration']
+                    self.tracking_data_communicate.ResetHotPoints()
                 else:
                     self.logger.error("上报数据失败：status code:{},返回数据：{}",resp.status_code,resp.text)
                     # print(resp.text)
